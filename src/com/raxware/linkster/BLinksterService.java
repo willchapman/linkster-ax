@@ -20,6 +20,12 @@ package com.raxware.linkster;
 
 import javax.baja.sys.*;
 
+/**
+ * A service that goes in the Services container and provides a means of automating
+ * a many-to-many link creation.  
+ * 
+ * @author Will Chapman
+ */
 public class BLinksterService extends BAbstractService {
 
     public Type[] getServiceTypes() {

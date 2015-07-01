@@ -20,6 +20,7 @@ package com.raxware.linkster.ui;
 
 import javax.baja.sys.*;
 import javax.baja.gx.*;
+import javax.baja.log.Log;
 import javax.baja.naming.*;
 import javax.baja.ui.*;
 import javax.baja.ui.enums.*;
@@ -37,6 +38,8 @@ public class BLinksterToolView extends BWbView {
     private BButton linkButton;
 
     private BOrd rootOrd;
+
+    private static final Log log = Log.getLog("linkster");
 
     public BLinksterToolView() {
     }
@@ -122,7 +125,7 @@ public class BLinksterToolView extends BWbView {
             clearResultsPane();
             int count = linkFrom.getList().getItemCount();
 
-            addToResultPane("Linking " + count + " objects now...");
+            log.message("Linking "+count+" components.");
             for (int i = 0; i < count; i++) {
                 // get the ord
                 String fromOrdString = (String) linkFrom.getList().getItem(i);
@@ -136,18 +139,55 @@ public class BLinksterToolView extends BWbView {
                 String toSlot = toOrdString.substring(toOrdString.lastIndexOf('.') + 1);
 
                 // get the ord object
-                BOrd from = BOrd.make(rootOrd, fromOrd);
-                BOrd to = BOrd.make(rootOrd, toOrd);
+                BComponent from = null;
+                BComponent to = null;
+                try {
+                    from = BOrd.make(rootOrd, fromOrd).get(Sys.getStation()).asComponent();
+                    to = BOrd.make(rootOrd, toOrd).get(Sys.getStation()).asComponent();
 
-                // the real magic
-                BLink link = new BLink(from.get().asComponent().getHandleOrd(), fromSlot, toSlot, true);
-                BComponent toComp = to.resolve().get().asComponent();
-                toComp.add("rwLink_" + fromSlot + "_" + toSlot, link);
-                // magic is done
-
-                addToResultPane(" Link: " + from.toString() + "[" + fromSlot + "] -> " + to.toString() + "[" + toSlot + "]");
+                } catch (Exception e) {
+                    addToResultPane(" ERROR - Unable to resolve components. " + e.getMessage());
+                    log.error("Unable to resolve components", e);
+                    continue;
+                }
+                
+                //
+                // it would seem that the makeLink on BComponent does everything we need,
+                // including checking for (and creating) BConversionLink objects
+                // as needed.  So we will let that method do our heavy lifting.
+                try {
+                    LinkCheck linkCheck = to.checkLink(from, from.getSlot(fromSlot), to.getSlot(toSlot), null);
+                    if(linkCheck.isValid()) {
+                        BLink link = to.makeLink(from, from.getSlot(fromSlot), to.getSlot(toSlot), null);
+                        String linkName = "rwLink_" + fromSlot + "_" + toSlot + "?";
+                        to.add(linkName, link);                        
+                        if ( isConversionLink(link) ) {
+                            addToResultPane(" Conv Link: " + from.toPathString()+ "[" + fromSlot + "] -> " + to.toPathString() + "[" + toSlot + "]");
+                        } else {
+                            addToResultPane(" Link: " + from.toPathString() + "[" + fromSlot + "] -> " + to.toPathString() + "[" + toSlot + "]");
+                        }
+                    } else {
+                        addToResultPane(" Invalid Link - Unable to create link.  " + linkCheck.getInvalidReason());
+                    }
+                    
+                } catch (Exception e) {
+                    addToResultPane(" An error occurred while attempting to add the link.  ERROR:"+e.getMessage());
+                    log.error("Unable to add link", e);
+                }
             }
             return null;
+        }
+
+        /**
+         * We need to maintain backwards compatibility, so since 3.5 does not
+         * know anything about javax.baja.sys.BConversionLink we need to use
+         * the String representation of the Type to determine what we got back.
+         * 
+         * @param link
+         * @return 
+         */
+        private boolean isConversionLink(BLink link) {
+            return link.getType().toString().equals("baja:ConversionLink");
         }
     }
 
