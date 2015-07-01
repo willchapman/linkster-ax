@@ -1,0 +1,270 @@
+/*
+This is a part of Linkster
+
+Linkster is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+Copyright 2008 Will Chapman
+*/
+package com.raxware.linkster.ui;
+
+import java.util.ArrayList;
+
+import javax.baja.sys.*;
+import javax.baja.gx.*;
+import javax.baja.naming.*;
+import javax.baja.ui.*;
+import javax.baja.ui.enums.*;
+import javax.baja.ui.event.*;
+import javax.baja.ui.list.*;
+import javax.baja.ui.pane.*;
+
+import com.raxware.linkster.qglobber.Globber;
+
+/**
+ * This will be the UI for a single "side" in the linkster service view.  
+ * One will constitute the "from" side, the other the "to" side.  
+ * 
+ * @author Will Chapman
+ *
+ */
+public class BLinksterSide extends BEdgePane {
+	
+	private String label;
+	private BGridPane gpane;
+	private BLabel titleLabel;
+	private BTextField txtTemplate;
+	private BTextField txtRange;
+	private BTextField txtSlot;
+	private BList resultList;
+	private BButton compileButton;
+	private BButton clearListButton;
+	
+	public BLinksterSide()
+	{
+		this("Default label");
+	}
+	
+	public BLinksterSide(String label)
+	{
+		this.label = label;
+					
+		titleLabel = new BLabel(label, BFont.make("bold 12pt Times New Roman"));
+		txtTemplate = new BTextField("", 50, true);
+		txtRange = new BTextField("", 50, true);
+		txtSlot = new BTextField("", 50, true);
+		resultList = new BList();
+		compileButton = new BButton();
+		compileButton.setCommand(new CompileTemplateCommand(), true, true);
+		
+		clearListButton = new BButton();
+		clearListButton.setCommand(new ClearListCommand(), true, true);
+		
+		BGridPane topControlsPane = new BGridPane(2);
+		topControlsPane.add(null, new BLabel("Template:"));
+		topControlsPane.add(null, txtTemplate);
+		topControlsPane.add(null, new BLabel("Range:"));
+		topControlsPane.add(null, txtRange);
+		topControlsPane.add(null, new BLabel("Slot"));
+		topControlsPane.add(null, txtSlot);
+		
+		topControlsPane.setStretchColumn(1);
+		
+		BGridPane gridTop = new BGridPane();
+		gridTop.setColumnCount(1);
+		gridTop.add(null, titleLabel); // 0
+		gridTop.add(null, topControlsPane);
+		setTop(gridTop);
+		
+		resultList = new BList();
+		setCenter(resultList);
+		
+		BFlowPane fp = new BFlowPane(BHalign.center);
+		fp.add(null, compileButton);
+		fp.add(null, clearListButton);
+		setBottom(fp);
+	}
+	
+	public BTextField getTemplate()
+	{
+		return txtTemplate;
+	}
+	
+	public BTextField getRange()
+	{
+		return txtRange;
+	}
+	
+	public BTextField getSlotText()
+	{
+		return txtSlot;
+	}
+	
+	public void setTemplateText(String text)
+	{
+		txtTemplate.setText(text);
+	}
+	
+	public void setRangeText(String text)
+	{
+		txtRange.setText(text);
+	}
+	
+	public void setSlotText(String txt)
+	{
+		txtSlot.setText(txt);
+	}
+	
+	public BList getList()
+	{
+		return resultList;
+	}
+	
+	/**
+	 * Command to clear the list
+	 * 
+	 * @author Will Chapman
+	 */
+	class ClearListCommand extends Command
+	{
+		public ClearListCommand()
+		{
+			super(
+				clearListButton,
+				"Clear",
+				BImage.make(BIcon.std("spiral.png")),
+				null,
+				"Clears the list"
+				);
+		}
+		
+		public CommandArtifact doInvoke()
+		{
+			resultList.getModel().removeAllItems();
+			return null;
+		}
+	}
+	
+	/**
+	 * Takes the string, pattern and range to fill the listbox
+	 * 
+	 * @author Will Chapman
+	 */
+	class CompileTemplateCommand extends Command
+	{
+		public CompileTemplateCommand()
+		{			
+			super(
+				compileButton, 
+				"Compile", 
+				BImage.make(BOrd.make("module://linkster/com/raxware/linkster/res/icons/bricks.png")),
+				BAccelerator.make(BKeyEvent.VK_F1, BKeyEvent.VK_ALT),
+				"Compiles the template list using the range"
+				);
+		}
+		
+		public CommandArtifact doInvoke()
+		{			
+			// clear the list
+			resultList.getModel().removeAllItems();
+			
+			// get the data
+			String template = txtTemplate.getText();
+			String[] range = convertRange(txtRange.getText());
+			String slot = txtSlot.getText();
+			
+			// which do i 'explode' ?
+			if(slot.indexOf("{[]}") > 0)
+			{
+			  // exploding the slot
+			  ArrayList results = Globber.explodeNumericalSequence(slot, range);
+			  for(int i=0; i < results.size(); i++)
+          resultList.addItem( template + "." + results.get(i) );
+			}
+			else
+			{
+			  // exploding the 'template'
+			  ArrayList results = Globber.explodeNumericalSequence(template, range);
+			  for(int i=0; i < results.size(); i++)
+	        resultList.addItem( results.get(i) + "." + slot );
+			}
+			
+			// need to update				
+			return null;
+		}
+		
+		/**
+		 * Takes the rules of the range and splits it into an array
+		 * 
+		 * slot:/Building{[]}/Floor{[]}/VAV{[]}
+		 * So "1..2,1..10,1..25" will be converted into
+		 *   Object[0] = "1..2"
+		 *   Object[1] = "1..10"
+		 *   Object[2] = "1..25"
+		 * @param range
+		 * @return
+		 */
+		private String[] convertRange(String range)
+		{
+			String[] test = Globber.split(range, ',', false);
+			ArrayList valid = new ArrayList();
+			
+			for(int i=0; i < test.length; i++)
+			{
+				if ( validateRange(range) )
+					valid.add(test[i]);
+			}
+			
+			//UGH !!
+			String[] convertedArray = new String[valid.size()];
+			for(int i=0; i < valid.size(); i++)
+			{
+				convertedArray[i] = (String) valid.get(i);
+			}
+			
+			return convertedArray;
+		}
+		
+		/**
+		 * Tests for a start, end and two periods in the middle
+		 * @param range
+		 * @return
+		 */
+		private boolean validateRange(String range)
+		{
+			// need to implement
+			return true;
+		}
+	}
+	
+	/*-
+	 class BLinksterSide
+	 {
+	 } 
+	 -*/
+/*+ ------------ BEGIN BAJA AUTO GENERATED CODE ------------ +*/
+/*@ $com.raxware.linkster.ui.BLinksterSide(1630248303)1.0$ @*/
+/* Generated Thu Apr 17 20:40:54 EDT 2008 by Slot-o-Matic 2000 (c) Tridium, Inc. 2000 */
+
+////////////////////////////////////////////////////////////////
+// Type
+////////////////////////////////////////////////////////////////
+  
+  public Type getType() { return TYPE; }
+  public static final Type TYPE = Sys.loadType(BLinksterSide.class);
+
+/*+ ------------ END BAJA AUTO GENERATED CODE -------------- +*/
+
+
+}
+

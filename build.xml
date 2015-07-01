@@ -1,0 +1,26 @@
+<!-- Module Build File -->
+
+<module
+  name = "linkster"
+  bajaVersion = "0"
+  preferredSymbol = "lnkr"
+  description = "Linkster-AX"
+  vendor = "Raxware"
+>
+
+  <!-- Dependencies -->
+  <dependency name="baja" />
+  <dependency name="workbench" />
+  <dependency name="bajaui" />
+  <dependency name="gx" />
+
+  <!-- Packages -->
+  <package name="com.raxware.linkster" />
+  <package name="com.raxware.linkster.qglobber" />
+  <package name="com.raxware.linkster.ui" install="ui" />
+
+  <!-- Resources -->
+  <resources name="com/raxware/linkster/res/icons/*.png" install="ui" />
+
+
+</module>
